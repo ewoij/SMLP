@@ -7,9 +7,9 @@ def relu(x):
 
 class Neuron:
     def __init__(self, nin: int) -> None:
-        self.w = [random.uniform(-1,1) for _ in range(nin)]
+        self.w = [random.uniform(0,1) for _ in range(nin)]
         self.x = [0] * nin
-        self.b = random.uniform(-1,1)
+        self.b = random.uniform(0,1)
         self.out = 0.0
         self.reset_grad()
 
@@ -82,28 +82,34 @@ class MLP:
         return '\n\n'.join(f'layer={i}, neurons={f_list(self.layers[i])}' for i in range(len(self.layers)))
 
 
-# m = MLP([2,10,10,2])
-# 
-# D = [
-#     [[0, 0], [1, 1]],
-#     [[0, 1], [1, 0]],
-#     [[1, 0], [0, 1]],
-#     [[1, 1], [0, 0]],
-# ]
-# 
-# while True:
-#     m.reset_grad()
-# 
-#     for in_, exp in D:
-#         out = m(in_)
-#         m.backward(out)
-#         loss = sum((exp - out)**2 for exp, out in zip(exp, out))
-#         print(in_, out, loss)
-# 
-#     m.descent(0.1**4)
-# 
-#     input()
+m = MLP([2,10,10,2])
 
+D = [
+    [[0, 0], [1, 1]],
+    [[0, 1], [1, 0]],
+    [[1, 0], [0, 1]],
+    [[1, 1], [0, 0]],
+]
+
+i = 0
+while True:
+    m.reset_grad()
+
+    for in_, exp in D:
+        out = m(in_)
+        m.backward(out)
+
+    m.descent(0.1**4)
+
+    if i % 100 == 0:
+        for in_, exp in D:
+            out = m(in_)
+            loss = sum((exp - out)**2 for exp, out in zip(exp, out))
+            print(in_, out, loss)
+
+        input()
+
+    i+=1
 
 m = MLP([1,1,1])
 
