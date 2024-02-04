@@ -113,6 +113,15 @@ def shuffle_data(D, E):
     return D, E
 
 
+def random_sample_data(D, E, n):
+    D, E = shuffle_data(D, E)
+    return D[:n], E[:n]
+
+
+def mean_square_loss(O: list[float], E: list[float]) -> float:
+    return sum((O[i] - E[i])**2 for i in range(len(O))) / len(O)
+
+
 m = MLP([2,2,2,1])
 D = [
     [0, 0],
@@ -135,23 +144,60 @@ for epoch in range(num_epochs):
 
 
 
-m = MLP([2,2,2,2])
+m = MLP([2] + [10] * 2 + [2])
 D = [
     [0, 0],
+    [0, 1],
+    [1, 0],
     [1, 1],
 ]
 E = [
-    [0, 0],
+    [2, 2],
+    [2, 1],
+    [1, 2],
     [1, 1],
 ]
+D, E = random_sample_data(D, E, 3) # strugles from 3
 
-num_epochs = 1000
+num_epochs = 10000
 for epoch in range(num_epochs):
-    # D, E = shuffle_data(D, E)
+    O = [None] * len(D)
+    D, E = shuffle_data(D, E)
     for i in range(len(D)):
-        output = m(D[i])
-        print(D[i], E[i], output)
+        O[i] = m(D[i])
         m.reset_grad()
         m.backward(E[i])
-        m.descent()
+        m.descent(step=0.1**3)
+    if epoch % 100 == 0:
+        loss = sum(mean_square_loss(O[i], E[i]) for i in range(len(O))) / len(O)
+        print(loss)
 
+
+# works pretty well for that
+m = MLP([2] + [10] * 5 + [1])
+D = [
+    [0, 0],
+    [0, 1],
+    [1, 0],
+    [1, 1],
+]
+E = [
+    [1],
+    [2],
+    [3],
+    [4],
+]
+
+
+num_epochs = 10000
+for epoch in range(num_epochs):
+    O = [None] * len(D)
+    D, E = shuffle_data(D, E)
+    for i in range(len(D)):
+        O[i] = m(D[i])
+        m.reset_grad()
+        m.backward(E[i])
+        m.descent(step=0.1**3)
+    if epoch % 100 == 0:
+        loss = sum(mean_square_loss(O[i], E[i]) for i in range(len(O))) / len(O)
+        print(loss)
