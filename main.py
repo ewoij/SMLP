@@ -15,7 +15,10 @@ class Neuron:
 
     def reset_grad(self) -> None:
         self.w_grad = [0.0] * len(self.w)
+        self.w_grad_comp = [None] * len(self.w)
         self.x_grad = [0.0] * len(self.w)
+        self.b_grad = 0.0
+        self.b_grad_comp = 0.0
 
     def __call__(self, x: list[float]) -> float:
         self.x = x
@@ -24,14 +27,16 @@ class Neuron:
         return self.out
 
     def backward(self, grad: float) -> None:
-        for i in range(len(self.w)):
-            self.w_grad[i] += (self.x[i] if self.x[i] * self.w[i] > 0 else 0) * grad
-            self.x_grad[i] += (self.w[i] if self.x[i] * self.w[i] > 0 else 0) * grad
+        if self.out > 0:
+            self.b_grad += 1 * grad 
+            for i in range(len(self.w)):
+                self.w_grad[i] += self.x[i] * grad
+                self.x_grad[i] += self.w[i] * grad
 
     def __repr__(self, indent: int = 0) -> str:
         return '\n'.join([
-            f"{' ' * indent}b={self.b}",
-            '\n'.join(f"{' ' * indent}{' ' * 2}{i}: w={self.w[i]}, x={self.x[i]}, w_grad={self.w_grad[i]}, x_grad={self.x_grad[i]}" for i in range(len(self.w))),
+            f"{' ' * indent}b={self.b}, b_grad={self.b_grad}, b_grad_comp={self.b_grad_comp}, out={self.out}",
+            '\n'.join(f"{' ' * indent}{' ' * 2}{i}: w={self.w[i]}, x={self.x[i]}, w_grad={self.w_grad[i]}, w_grad_comp={self.w_grad_comp[i]}, x_grad={self.x_grad[i]}" for i in range(len(self.w))),
         ])
 
 
@@ -67,8 +72,9 @@ class MLP:
     def descent(self, step: float = 0.1**3) -> None:
         for li in range(len(self.layers)):
             for ni in range(len(self.layers[li])):
-                for wi in range(len(self.layers[li][ni].w)):
-                    n = self.layers[li][ni]
+                n = self.layers[li][ni]
+                n.b += n.b * -n.b_grad * step
+                for wi in range(len(n.w)):
                     w, g = n.w, n.w_grad
                     w[wi] += w[wi] * -g[wi] * step
 
@@ -77,57 +83,75 @@ class MLP:
             for ni in range(len(self.layers[li])):
                 self.layers[li][ni].reset_grad()
 
+    def compute_grad_forward_pass(self, x: list[float]):
+        h = 0.1**6
+        for li in range(len(self.layers)):
+            for ni in range(len(self.layers[li])):
+                for wi in range(len(self.layers[li][ni].w)):
+                    a = self(x)
+                    self.layers[li][ni].w[wi] += h
+                    b = self(x)
+                    self.layers[li][ni].w[wi] -= h
+                    self.layers[li][ni].w_grad_comp[wi] = [(b[i] - a[i]) / h for i in range(len(a))]
+
+                    self.layers[li][ni].b += h
+                    b = self(x)
+                    self.layers[li][ni].b -= h
+                    self.layers[li][ni].b_grad_comp = [(b[i] - a[i]) / h for i in range(len(a))]
+
     def __repr__(self) -> str:
         f_list = lambda l: '[\n' + '\n'.join([v.__repr__(indent=2) for v in l]) + '\n]'
         return '\n\n'.join(f'layer={i}, neurons={f_list(self.layers[i])}' for i in range(len(self.layers)))
 
+# end
 
-m = MLP([2,10,10,2])
 
+def shuffle_data(D, E):
+    combined = list(zip(D, E))
+    random.shuffle(combined)
+    D[:], E[:] = zip(*combined)
+    return D, E
+
+
+m = MLP([2,2,2,1])
 D = [
-    [[0, 0], [1, 1]],
-    [[0, 1], [1, 0]],
-    [[1, 0], [0, 1]],
-    [[1, 1], [0, 0]],
+    [0, 0],
+    [1, 1],
+]
+E = [
+    [0],
+    [1],
 ]
 
-i = 0
-while True:
-    m.reset_grad()
+num_epochs = 10000
+for epoch in range(num_epochs):
+    D, E = shuffle_data(D, E)
+    for i in range(len(D)):
+        output = m(D[i])
+        print(output)
+        m.reset_grad()
+        m.backward(E[i])
+        m.descent()
 
-    for in_, exp in D:
-        out = m(in_)
-        m.backward(out)
 
-    m.descent(0.1**4)
 
-    if i % 100 == 0:
-        for in_, exp in D:
-            out = m(in_)
-            loss = sum((exp - out)**2 for exp, out in zip(exp, out))
-            print(in_, out, loss)
+m = MLP([2,2,2,2])
+D = [
+    [0, 0],
+    [1, 1],
+]
+E = [
+    [0, 0],
+    [1, 1],
+]
 
-        input()
+num_epochs = 1000
+for epoch in range(num_epochs):
+    # D, E = shuffle_data(D, E)
+    for i in range(len(D)):
+        output = m(D[i])
+        print(D[i], E[i], output)
+        m.reset_grad()
+        m.backward(E[i])
+        m.descent()
 
-    i+=1
-
-m = MLP([1,1,1])
-
-h = 0.1 ** 6
-
-m.layers[0][0].w[0] = 2
-m.layers[0][0].b = 0
-m.layers[1][0].w[0] = 3
-m.layers[1][0].b = 0
-
-[a] = m([1])
-m.layers[0][0].w[0] += h
-[b] = m([1])
-m.layers[0][0].w[0] -= h # revert
-print('n0', (b - a) / h)
-
-[a] = m([1])
-m.layers[1][0].w[0] += h
-[b] = m([1])
-m.layers[1][0].w[0] -= h # revert
-print('n1', (b - a) / h)
