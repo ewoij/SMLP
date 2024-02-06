@@ -1,17 +1,51 @@
+from abc import ABC
 import random
+import math
+from typing import Type
 
 
-def relu(x):
-    return max(0, x)
+class ActivationFunc(ABC):
+    def __call__(self, x) -> float:
+        self.x = x
+        return 0
+
+    @property
+    def grad(self) -> float:
+        raise NotImplemented()
+
+
+class Relu(ActivationFunc):
+    name = "Relu"
+
+    def __call__(self, x) -> float:
+        super().__call__(x)
+        return max(0, x)
+
+    @property
+    def grad(self) -> float:
+        return 1 if self.x > 0 else 0
+
+
+class Tanh(ActivationFunc):
+    name = "Tanh"
+
+    def __call__(self, x) -> float:
+        super().__call__(x)
+        return math.tanh(x)
+
+    @property
+    def grad(self) -> float:
+        return 1 - math.tanh(self.x)**2
 
 
 class Neuron:
-    def __init__(self, nin: int) -> None:
+    def __init__(self, nin: int, activation_func: ActivationFunc) -> None:
         self.w = [random.uniform(0,1) for _ in range(nin)]
         self.x = [0] * nin
         self.b = random.uniform(0,1)
         self.out = 0.0
         self.reset_grad()
+        self.activation_func = activation_func
 
     def reset_grad(self) -> None:
         self.w_grad = [0.0] * len(self.w)
@@ -23,31 +57,31 @@ class Neuron:
     def __call__(self, x: list[float]) -> float:
         self.x = x
         self.out = sum(x * w for x, w in zip(x, self.w)) + self.b
-        self.out = relu(self.out)
+        self.out = self.activation_func(self.out)
         return self.out
 
     def backward(self, grad: float) -> None:
-        if self.out > 0:
-            self.b_grad += 1 * grad 
-            for i in range(len(self.w)):
-                self.w_grad[i] += self.x[i] * grad
-                self.x_grad[i] += self.w[i] * grad
+        self.b_grad += 1 * self.activation_func.grad * grad
+        for i in range(len(self.w)):
+            self.w_grad[i] += self.x[i] * self.activation_func.grad * grad
+            self.x_grad[i] += self.w[i] * self.activation_func.grad * grad
 
     def __repr__(self, indent: int = 0) -> str:
         return '\n'.join([
-            f"{' ' * indent}b={self.b}, b_grad={self.b_grad}, b_grad_comp={self.b_grad_comp}, out={self.out}",
+            f"{' ' * indent}b={self.b}, b_grad={self.b_grad}, b_grad_comp={self.b_grad_comp}, out={self.out}, activation_func={self.activation_func.name}",
             '\n'.join(f"{' ' * indent}{' ' * 2}{i}: w={self.w[i]}, x={self.x[i]}, w_grad={self.w_grad[i]}, w_grad_comp={self.w_grad_comp[i]}, x_grad={self.x_grad[i]}" for i in range(len(self.w))),
         ])
 
 
 
 class MLP:
-    def __init__(self, shape: list[int]) -> None:
-        assert len(shape) >= 2, "must have at leat 1 layer of neurons"
-        self.layers = [
-            [Neuron(shape[i-1]) for _ in range(shape[i])] 
-            for i in range(1, len(shape))
-        ]
+    def __init__(self, nin: int, layers: list[list[Type[ActivationFunc]]]) -> None:
+        assert len(layers) >= 1, "must have at least one layer"
+
+        self.layers = []
+        for layer in layers:
+            self.layers.append([Neuron(nin, act_func_cls()) for act_func_cls in layer])
+            nin = len(layer)
 
     def __call__(self, x: list[float]) -> list[float]:
         assert len(x) == len(self.layers[0][0].w), "incorrect number of inputs"
@@ -103,7 +137,7 @@ class MLP:
         f_list = lambda l: '[\n' + '\n'.join([v.__repr__(indent=2) for v in l]) + '\n]'
         return '\n\n'.join(f'layer={i}, neurons={f_list(self.layers[i])}' for i in range(len(self.layers)))
 
-# end
+# tend
 
 
 def shuffle_data(D, E):
@@ -122,59 +156,12 @@ def mean_square_loss(O: list[float], E: list[float]) -> float:
     return sum((O[i] - E[i])**2 for i in range(len(O))) / len(O)
 
 
-m = MLP([2,2,2,1])
-D = [
-    [0, 0],
-    [1, 1],
-]
-E = [
-    [0],
-    [1],
-]
-
-num_epochs = 10000
-for epoch in range(num_epochs):
-    D, E = shuffle_data(D, E)
-    for i in range(len(D)):
-        output = m(D[i])
-        print(output)
-        m.reset_grad()
-        m.backward(E[i])
-        m.descent()
-
-
-
-m = MLP([2] + [10] * 2 + [2])
-D = [
-    [0, 0],
-    [0, 1],
-    [1, 0],
-    [1, 1],
-]
-E = [
-    [2, 2],
-    [2, 1],
-    [1, 2],
-    [1, 1],
-]
-D, E = random_sample_data(D, E, 3) # strugles from 3
-
-num_epochs = 10000
-for epoch in range(num_epochs):
-    O = [None] * len(D)
-    D, E = shuffle_data(D, E)
-    for i in range(len(D)):
-        O[i] = m(D[i])
-        m.reset_grad()
-        m.backward(E[i])
-        m.descent(step=0.1**3)
-    if epoch % 100 == 0:
-        loss = sum(mean_square_loss(O[i], E[i]) for i in range(len(O))) / len(O)
-        print(loss)
-
-
-# works pretty well for that
-m = MLP([2] + [10] * 5 + [1])
+# fails again here
+m = MLP(2, [
+    [Tanh] * 10,
+    [Relu] * 10,
+    [Relu]
+])
 D = [
     [0, 0],
     [0, 1],
@@ -186,8 +173,13 @@ E = [
     [2],
     [3],
     [4],
-]
-
+] # ok
+E = [
+    [4],
+    [3],
+    [2],
+    [1],
+] # nok
 
 num_epochs = 10000
 for epoch in range(num_epochs):
@@ -197,7 +189,7 @@ for epoch in range(num_epochs):
         O[i] = m(D[i])
         m.reset_grad()
         m.backward(E[i])
-        m.descent(step=0.1**3)
+        m.descent(step=0.1 ** 3)
     if epoch % 100 == 0:
         loss = sum(mean_square_loss(O[i], E[i]) for i in range(len(O))) / len(O)
         print(loss)
