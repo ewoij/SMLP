@@ -38,11 +38,23 @@ class Tanh(ActivationFunc):
         return 1 - math.tanh(self.x)**2
 
 
+class MeanSquareLoss:
+    def __call__(self, x: list[float], e: list[float]) -> float:
+        assert len(x) == len(e)
+        self.x, self.e = x, e
+        return sum((x[i] - e[i]) ** 2 for i in range(len(x))) / len(x)
+
+    @property
+    def grad(self) -> list[float]:
+        x, e = self.x, self.e
+        return [2 * (x[i] - e[i]) / len(x) for i in range(len(x))]
+
+
 class Neuron:
     def __init__(self, nin: int, activation_func: ActivationFunc) -> None:
-        self.w = [random.uniform(0,1) for _ in range(nin)]
+        self.w = [random.uniform(-1,1) for _ in range(nin)]
         self.x = [0] * nin
-        self.b = random.uniform(0,1)
+        self.b = random.uniform(-1,1)
         self.out = 0.0
         self.reset_grad()
         self.activation_func = activation_func
@@ -90,12 +102,8 @@ class MLP:
             out = [neuron(out) for neuron in neurons]
         return out
 
-    def backward(self, expected: list[float]) -> None:
-        assert len(expected) == len(self.layers[-1]), "must have same dimension as the last layer"
-        actual = [neuron.out for neuron in self.layers[-1]]
-        # actual > expected: following gradient will increase the loss
-        # actual < expected: following gradient will decrease the loss, therefore reverting
-        grad = [1 if actual[i] > expected[i] else -1 for i in range(len(self.layers[-1]))]
+    def backward(self, grad: list[float]) -> None:
+        assert len(grad) == len(self.layers[-1]), "must have same dimension as the last layer"
         for i in range(len(grad)):
             self.layers[-1][i].backward(grad[i])
         for li in reversed(range(1, len(self.layers))):
@@ -152,13 +160,8 @@ def random_sample_data(D, E, n):
     return D[:n], E[:n]
 
 
-def mean_square_loss(O: list[float], E: list[float]) -> float:
-    return sum((O[i] - E[i])**2 for i in range(len(O))) / len(O)
-
-
-# fails again here
 m = MLP(2, [
-    [Tanh] * 10,
+    [Relu] * 10,
     [Relu] * 10,
     [Relu]
 ])
@@ -181,15 +184,17 @@ E = [
     [1],
 ] # nok
 
+
 num_epochs = 10000
+loss = MeanSquareLoss()
 for epoch in range(num_epochs):
-    O = [None] * len(D)
     D, E = shuffle_data(D, E)
     for i in range(len(D)):
-        O[i] = m(D[i])
         m.reset_grad()
-        m.backward(E[i])
+        output = m(D[i])
+        l = loss(output, E[i])
+        m.backward(loss.grad)
         m.descent(step=0.1 ** 3)
     if epoch % 100 == 0:
-        loss = sum(mean_square_loss(O[i], E[i]) for i in range(len(O))) / len(O)
-        print(loss)
+        print(f"{epoch:6}: {l:<10.2}")
+
