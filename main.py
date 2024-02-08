@@ -115,10 +115,10 @@ class MLP:
         for li in range(len(self.layers)):
             for ni in range(len(self.layers[li])):
                 n = self.layers[li][ni]
-                n.b += n.b * -n.b_grad * step
+                n.b += -n.b_grad * step
                 for wi in range(len(n.w)):
                     w, g = n.w, n.w_grad
-                    w[wi] += w[wi] * -g[wi] * step
+                    w[wi] += -g[wi] * step
 
     def reset_grad(self) -> None:
         for li in range(len(self.layers)):
