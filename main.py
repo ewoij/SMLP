@@ -160,6 +160,20 @@ def random_sample_data(D, E, n):
     return D[:n], E[:n]
 
 
+def train(m: MLP, X: list[list[float]], Y: list[list[float]], num_epochs: int = 10**3) -> None:
+    loss = MeanSquareLoss()
+    for epoch in range(num_epochs):
+        X, Y = shuffle_data(X, Y)
+        for i in range(len(X)):
+            m.reset_grad()
+            output = m(X[i])
+            l = loss(output, Y[i])
+            m.backward(loss.grad)
+            m.descent(step=0.1 ** 3)
+        if epoch % 100 == 0:
+            print(f"{epoch:6}: {l:<10.2}")
+
+
 m = MLP(2, [
     [Relu] * 10,
     [Relu] * 10,
@@ -172,29 +186,10 @@ D = [
     [1, 1],
 ]
 E = [
-    [1],
-    [2],
-    [3],
-    [4],
-] # ok
-E = [
     [4],
     [3],
     [2],
     [1],
-] # nok
+]
 
-
-num_epochs = 10000
-loss = MeanSquareLoss()
-for epoch in range(num_epochs):
-    D, E = shuffle_data(D, E)
-    for i in range(len(D)):
-        m.reset_grad()
-        output = m(D[i])
-        l = loss(output, E[i])
-        m.backward(loss.grad)
-        m.descent(step=0.1 ** 3)
-    if epoch % 100 == 0:
-        print(f"{epoch:6}: {l:<10.2}")
-
+train(m, D, E)
