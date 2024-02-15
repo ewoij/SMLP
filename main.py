@@ -145,8 +145,6 @@ class MLP:
         f_list = lambda l: '[\n' + '\n'.join([v.__repr__(indent=2) for v in l]) + '\n]'
         return '\n\n'.join(f'layer={i}, neurons={f_list(self.layers[i])}' for i in range(len(self.layers)))
 
-# tend
-
 
 def shuffle_data(D, E):
     combined = list(zip(D, E))
@@ -160,36 +158,16 @@ def random_sample_data(D, E, n):
     return D[:n], E[:n]
 
 
-def train(m: MLP, X: list[list[float]], Y: list[list[float]], num_epochs: int = 10**3) -> None:
+def train(m: MLP, X: list[list[float]], Y: list[list[float]], num_epochs: int = 10**3, descent_step: float = 0.1 ** 3) -> None:
     loss = MeanSquareLoss()
     for epoch in range(num_epochs):
         X, Y = shuffle_data(X, Y)
+        loss_sum = 0
         for i in range(len(X)):
             m.reset_grad()
             output = m(X[i])
             l = loss(output, Y[i])
+            loss_sum += l
             m.backward(loss.grad)
-            m.descent(step=0.1 ** 3)
-        if epoch % 100 == 0:
-            print(f"{epoch:6}: {l:<10.2}")
-
-
-m = MLP(2, [
-    [Relu] * 10,
-    [Relu] * 10,
-    [Relu]
-])
-D = [
-    [0, 0],
-    [0, 1],
-    [1, 0],
-    [1, 1],
-]
-E = [
-    [4],
-    [3],
-    [2],
-    [1],
-]
-
-train(m, D, E)
+            m.descent(step=descent_step)
+        print(f"{epoch:6}: {loss_sum/len(X):<10}")
